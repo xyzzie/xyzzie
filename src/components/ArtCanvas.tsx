@@ -276,12 +276,27 @@ export default function ArtCanvas({
   const [caScale, setCaScale] = useState<number>(1.0);
   const [activeDragAction, setActiveDragAction] = useState<'pan' | 'move' | 'resize' | null>(null);
   const [isLayersPanelCollapsed, setIsLayersPanelCollapsed] = useState<boolean>(false);
+  const [isCaEnabledInCombined, setIsCaEnabledInCombined] = useState<boolean>(true);
   
   const startScaleRef = useRef<number>(1.0);
   const startBoxWidthRef = useRef<number>(0);
   const startBoxHeightRef = useRef<number>(0);
   const startShapePointsRef = useRef<Point[]>([]);
   const startShapeOriginRef = useRef<Point>({ x: 0, y: 0 });
+
+  // Draggable layer state
+  const [draggedLayerIndex, setDraggedLayerIndex] = useState<number | null>(null);
+  const [dragOverLayerIndex, setDragOverLayerIndex] = useState<number | null>(null);
+
+  const moveCombinedLayer = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === null || toIndex === null || fromIndex === toIndex) return;
+    setCombinedLSystems(prev => {
+      const updated = [...prev];
+      const [draggedItem] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, draggedItem);
+      return updated;
+    });
+  };
 
   const lastSelectSyncRef = useRef<{
     id: string;
@@ -399,6 +414,12 @@ export default function ArtCanvas({
     let rx = sx;
     let ry = sy;
     
+    // Account for viewport scale slider first
+    if (scale && scale !== 1.0) {
+      rx = sx / scale;
+      ry = sy / scale;
+    }
+    
     let totalRotDeg = rotation;
     if (mode === 'kaleidoscope' && kaleidoscopeSegments !== 2) {
       let baseOffsetDeg = 0;
@@ -415,8 +436,11 @@ export default function ArtCanvas({
       const cosVal = Math.cos(negRotRad);
       const sinVal = Math.sin(negRotRad);
       
-      const dx = sx - cx;
-      const dy = sy - cy;
+      const px = scale && scale !== 1.0 ? sx / scale : sx;
+      const py = scale && scale !== 1.0 ? sy / scale : sy;
+
+      const dx = px - cx;
+      const dy = py - cy;
       
       rx = dx * cosVal - dy * sinVal + cx;
       ry = dx * sinVal + dy * cosVal + cy;
@@ -466,6 +490,7 @@ export default function ArtCanvas({
     vpPanY,
     vpZoom,
     rotation,
+    scale,
     mode,
     kaleidoscopeMirrorAxis,
     canvasSize,
@@ -1691,7 +1716,7 @@ export default function ArtCanvas({
           }
         }
 
-        if ((kaleidoscopeSource === 'ca' || kaleidoscopeSource === 'combined') && caState) {
+        if ((kaleidoscopeSource === 'ca' || (kaleidoscopeSource === 'combined' && isCaEnabledInCombined)) && caState) {
           const isComp = kaleidoscopeSource === 'combined';
           const ox = isComp ? caManOffset.x : 0;
           const oy = isComp ? caManOffset.y : 0;
@@ -2241,7 +2266,7 @@ export default function ArtCanvas({
       // B. PURE SYSTEM RENDER (L-SYSTEM, CA, OR COMBINED)
       else {
         // 1. Draw Cellular Automata Grid if active
-        if ((mode === 'ca' || mode === 'combined') && caState) {
+        if ((mode === 'ca' || (mode === 'combined' && isCaEnabledInCombined)) && caState) {
           ctx.save();
           if (mode === 'combined') {
             ctx.translate(caManOffset.x, caManOffset.y);
@@ -2886,12 +2911,20 @@ export default function ArtCanvas({
   }, [axiom, rules, iterations, angle, length, decay, lineWidth, lsActivePalette, lsCustomPalette, budIterations, stochastic, seed, combinedLSystems, rebuildLSystemCache]);
 
   // Remove selected Combined L-system layers (keeping at least one)
-  const deleteSelectedLSystem = useCallback(() => {
-    if (combinedLSystems.length <= 1) return;
-    const remaining = combinedLSystems.filter(item => item.id !== selectedCombinedLSystemId);
-    setCombinedLSystems(remaining);
-    setSelectedCombinedLSystemId(remaining[remaining.length - 1].id);
-  }, [combinedLSystems, selectedCombinedLSystemId]);
+  const deleteSelectedLayer = useCallback(() => {
+    if (combinedDragTarget === 'ca') {
+      setIsCaEnabledInCombined(false);
+      setCombinedDragTarget('lsystem');
+      if (combinedLSystems.length > 0 && !selectedCombinedLSystemId) {
+        setSelectedCombinedLSystemId(combinedLSystems[0].id);
+      }
+    } else if (combinedDragTarget === 'lsystem') {
+      if (combinedLSystems.length <= 1) return;
+      const remaining = combinedLSystems.filter(item => item.id !== selectedCombinedLSystemId);
+      setCombinedLSystems(remaining);
+      setSelectedCombinedLSystemId(remaining[remaining.length - 1].id);
+    }
+  }, [combinedDragTarget, combinedLSystems, selectedCombinedLSystemId]);
 
   // Auto-initializer of a primary L-system layer when entering Combined mode
   useEffect(() => {
@@ -2947,21 +2980,27 @@ export default function ArtCanvas({
           seed: itemSeed
         };
 
-        if (setAxiom) setAxiom(item.axiom);
-        if (setRules) setRules(item.rules.map(r => ({ ...r })));
-        if (setIterations) setIterations(item.iterations);
-        if (setAngle) setAngle(item.angle);
-        if (setLength) setLength(item.length);
-        if (setDecay) setDecay(item.decay);
-        if (setLineWidth) setLineWidth(item.lineWidth);
-        if (setLsActivePalette) setLsActivePalette(item.activePalette);
-        if (setLsCustomPalette) setLsCustomPalette([...item.customPalette]);
-        if (setBudIterations) setBudIterations([...itemBuds]);
-        if (setStochastic) setStochastic(itemStochastic);
-        if (setSeed) setSeed(itemSeed);
+        if (setAxiom && axiom !== item.axiom) setAxiom(item.axiom);
+        if (setRules && JSON.stringify(rules) !== JSON.stringify(item.rules)) {
+          setRules(item.rules.map(r => ({ ...r })));
+        }
+        if (setIterations && iterations !== item.iterations) setIterations(item.iterations);
+        if (setAngle && angle !== item.angle) setAngle(item.angle);
+        if (setLength && length !== item.length) setLength(item.length);
+        if (setDecay && decay !== item.decay) setDecay(item.decay);
+        if (setLineWidth && lineWidth !== item.lineWidth) setLineWidth(item.lineWidth);
+        if (setLsActivePalette && lsActivePalette !== item.activePalette) setLsActivePalette(item.activePalette);
+        if (setLsCustomPalette && JSON.stringify(lsCustomPalette) !== JSON.stringify(item.customPalette)) {
+          setLsCustomPalette([...item.customPalette]);
+        }
+        if (setBudIterations && JSON.stringify(budIterations) !== JSON.stringify(itemBuds)) {
+          setBudIterations([...itemBuds]);
+        }
+        if (setStochastic && stochastic !== itemStochastic) setStochastic(itemStochastic);
+        if (setSeed && seed !== itemSeed) setSeed(itemSeed);
       }
     }
-  }, [selectedCombinedLSystemId, isCombinedActive, combinedLSystems]);
+  }, [selectedCombinedLSystemId, isCombinedActive]);
 
   // Sync from sidebar inputs to selected layer
   useEffect(() => {
@@ -3049,8 +3088,8 @@ export default function ArtCanvas({
 
     const needsCA = 
       mode === 'ca' || 
-      mode === 'combined' || 
-      (mode === 'kaleidoscope' && (kaleidoscopeSource === 'ca' || kaleidoscopeSource === 'combined'));
+      (mode === 'combined' && isCaEnabledInCombined) || 
+      (mode === 'kaleidoscope' && (kaleidoscopeSource === 'ca' || (kaleidoscopeSource === 'combined' && isCaEnabledInCombined)));
 
     if (!needsCA) {
       setCaState(null);
@@ -3079,7 +3118,7 @@ export default function ArtCanvas({
         clearTimeout(caTimerRef.current);
       }
     };
-  }, [mode, caType, cellSize, caSpeed, caDensity, canvasSize, generateKey, seed, kaleidoscopeSource]);
+  }, [mode, caType, cellSize, caSpeed, caDensity, canvasSize, generateKey, seed, kaleidoscopeSource, isCaEnabledInCombined]);
 
   // Track continuous slider adjustments for real-time LOD downscaling
   useEffect(() => {
@@ -3157,7 +3196,7 @@ export default function ArtCanvas({
     const isKaleidoscopeDraw = mode === 'kaleidoscope' && kaleidoscopeSource === 'draw' && e.button === 0;
 
     // Combined mode manual manipulation left-drag triggers with auto-detection on click
-    if (isCombinedActive && e.button === 0) {
+    if (isCombinedActive && e.button === 0 && !(caDrawMode === 'shapes' && caActiveTool !== 'move')) {
       const pt = screenToWorld(sx, sy);
 
       // A. Check if clicked on the top-right resize handle of selected L-System
@@ -3342,7 +3381,7 @@ export default function ArtCanvas({
     }
 
     // Normal dragging pan triggers when left-clicked in other modes or using aux buttons
-    const isCAModeShapes = (mode === 'ca' || (mode === 'kaleidoscope' && kaleidoscopeSource === 'ca')) && caDrawMode === 'shapes';
+    const isCAModeShapes = (mode === 'ca' || mode === 'combined' || (mode === 'kaleidoscope' && kaleidoscopeSource === 'ca')) && caDrawMode === 'shapes';
     if ((!isPenDraw && !isKaleidoscopeDraw && !isCAModeShapes) || e.button === 1 || e.button === 2) {
       setPanOriginOnCanvas(true);
       setIsPanning(true);
@@ -3464,8 +3503,9 @@ export default function ArtCanvas({
       const sy = e.clientY - rect.top;
       const pt = screenToWorld(sx, sy);
       if (lastMovingCAShapePtRef.current) {
-        const dx = pt.x - lastMovingCAShapePtRef.current.x;
-        const dy = pt.y - lastMovingCAShapePtRef.current.y;
+        const sc = mode === 'combined' ? caScale : 1;
+        const dx = (pt.x - lastMovingCAShapePtRef.current.x) / sc;
+        const dy = (pt.y - lastMovingCAShapePtRef.current.y) / sc;
         if (setCaShapes) {
           setCaShapes(prev => prev.map(s => s.id === selectedCAShapeId ? {
             ...s,
@@ -3519,8 +3559,20 @@ export default function ArtCanvas({
         }
       } else {
         // Move drag action
-        const deltaX = (e.clientX - startMouseXRef.current) / vpZoom;
-        const deltaY = (e.clientY - startMouseYRef.current) / vpZoom;
+        const screenDX = e.clientX - startMouseXRef.current;
+        const screenDY = e.clientY - startMouseYRef.current;
+
+        const theta = (rotation * Math.PI) / 180;
+        const cosT = Math.cos(theta);
+        const sinT = Math.sin(theta);
+
+        // Divide by viewport scale (slider) AND interactive zoom (vpZoom)
+        const totalScale = scale * vpZoom;
+        const dxScaled = screenDX / totalScale;
+        const dyScaled = screenDY / totalScale;
+
+        const deltaX = dxScaled * cosT + dyScaled * sinT;
+        const deltaY = -dxScaled * sinT + dyScaled * cosT;
 
         if (combinedDragTarget === 'lsystem' && selectedCombinedLSystemId) {
           setCombinedLSystems(prev => prev.map(item => item.id === selectedCombinedLSystemId ? {
@@ -3541,7 +3593,7 @@ export default function ArtCanvas({
     }
 
     // Interactive custom CA shape drawing
-    if ((mode === 'ca' || (mode === 'kaleidoscope' && kaleidoscopeSource === 'ca')) && isDrawingCAShape && startDragPtRef.current) {
+    if ((mode === 'ca' || mode === 'combined' || (mode === 'kaleidoscope' && kaleidoscopeSource === 'ca')) && isDrawingCAShape && startDragPtRef.current) {
       const rect = canvas.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
@@ -3572,11 +3624,27 @@ export default function ArtCanvas({
 
     // A. Handle simple panning drag scroll
     if (isPanning && panOriginOnCanvas) {
-      const deltaX = e.clientX - startMouseXRef.current;
-      const deltaY = e.clientY - startMouseYRef.current;
+      const screenDX = e.clientX - startMouseXRef.current;
+      const screenDY = e.clientY - startMouseYRef.current;
 
-      setVpPanX(startVpPanXRef.current + deltaX);
-      setVpPanY(startVpPanYRef.current + deltaY);
+      if (mode === 'kaleidoscope') {
+        setVpPanX(startVpPanXRef.current + screenDX);
+        setVpPanY(startVpPanYRef.current + screenDY);
+      } else {
+        const theta = (rotation * Math.PI) / 180;
+        const cosT = Math.cos(theta);
+        const sinT = Math.sin(theta);
+
+        // Divide by viewport scale (slider)
+        const dxScaled = screenDX / (scale || 1.0);
+        const dyScaled = screenDY / (scale || 1.0);
+
+        const deltaX = dxScaled * cosT + dyScaled * sinT;
+        const deltaY = -dxScaled * sinT + dyScaled * cosT;
+
+        setVpPanX(startVpPanXRef.current + deltaX);
+        setVpPanY(startVpPanYRef.current + deltaY);
+      }
       return;
     }
 
@@ -3642,7 +3710,7 @@ export default function ArtCanvas({
       return;
     }
 
-    if ((mode === 'ca' || (mode === 'kaleidoscope' && kaleidoscopeSource === 'ca')) && isDrawingCAShape) {
+    if ((mode === 'ca' || mode === 'combined' || (mode === 'kaleidoscope' && kaleidoscopeSource === 'ca')) && isDrawingCAShape) {
       setIsDrawingCAShape(false);
       startDragPtRef.current = null;
 
@@ -3664,9 +3732,12 @@ export default function ArtCanvas({
         const clickPt = caShapeDraftPoints[0];
         let foundShape = false;
         if (caShapes && clickPt) {
+          const checkPt = mode === 'combined'
+            ? { x: (clickPt.x - caManOffset.x) / caScale, y: (clickPt.y - caManOffset.y) / caScale }
+            : clickPt;
           for (let i = caShapes.length - 1; i >= 0; i--) {
             const shape = caShapes[i];
-            if (pointInShape(clickPt, shape)) {
+            if (pointInShape(checkPt, shape)) {
               if (setSelectedCAShapeId) setSelectedCAShapeId(shape.id);
               foundShape = true;
               break;
@@ -3698,7 +3769,12 @@ export default function ArtCanvas({
           const newShape: CAShape = {
             id: shapeId,
             type: caActiveTool as any,
-            points: [...caShapeDraftPoints],
+            points: mode === 'combined'
+              ? caShapeDraftPoints.map(p => ({
+                  x: (p.x - caManOffset.x) / caScale,
+                  y: (p.y - caManOffset.y) / caScale
+                }))
+              : [...caShapeDraftPoints],
             caRule,
             caRule2,
             caBlendMode,
@@ -4033,7 +4109,7 @@ export default function ArtCanvas({
           }
         }
 
-        if ((kaleidoscopeSource === 'ca' || kaleidoscopeSource === 'combined') && caState) {
+        if ((kaleidoscopeSource === 'ca' || (kaleidoscopeSource === 'combined' && isCaEnabledInCombined)) && caState) {
           const isComp = kaleidoscopeSource === 'combined';
           const ox = isComp ? caManOffset.x : 0;
           const oy = isComp ? caManOffset.y : 0;
@@ -4311,7 +4387,7 @@ export default function ArtCanvas({
         }
 
         // B. Get CA bounds if active
-        if ((mode === 'ca' || mode === 'combined') && caState) {
+        if ((mode === 'ca' || (mode === 'combined' && isCaEnabledInCombined)) && caState) {
           const ox = mode === 'combined' ? caManOffset.x : 0;
           const oy = mode === 'combined' ? caManOffset.y : 0;
           const sc = mode === 'combined' ? caScale : 1.0;
@@ -4350,7 +4426,7 @@ export default function ArtCanvas({
           offCtx.translate(-midX, -midY);
 
           // 1. Draw Cellular Automata Grid if active in this layout context
-          if ((mode === 'ca' || mode === 'combined') && caState) {
+          if ((mode === 'ca' || (mode === 'combined' && isCaEnabledInCombined)) && caState) {
             offCtx.save();
             if (mode === 'combined') {
               offCtx.translate(caManOffset.x, caManOffset.y);
@@ -4552,7 +4628,7 @@ export default function ArtCanvas({
         }
 
         // 1. Draw Cellular Automata Grid
-        if ((mode === 'ca' || mode === 'combined') && caState) {
+        if ((mode === 'ca' || (mode === 'combined' && isCaEnabledInCombined)) && caState) {
           offCtx.save();
           if (mode === 'combined') {
             offCtx.translate(caManOffset.x, caManOffset.y);
@@ -4806,80 +4882,33 @@ export default function ArtCanvas({
           </button>
         </div>
 
-        {/* Combined Mode Selector */}
-        {isCombinedActive && (
-          <div className="bg-slate-950/85 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-slate-800/80 shadow-lg text-slate-200 font-mono text-[11px] flex items-center gap-1.5 pointer-events-auto">
-            <span className="text-slate-500 text-[9px] uppercase font-bold pr-1.5 border-r border-slate-800/80">ВЫДЕЛЕНИЕ / ACTIVE</span>
-            
-            <button
-              type="button"
-              onClick={() => setCombinedDragTarget('lsystem')}
-              className={`px-2 py-0.5 rounded text-[10px] transition cursor-pointer font-sans border ${
-                combinedDragTarget === 'lsystem'
-                  ? 'bg-indigo-600/35 border-indigo-500 font-bold text-white'
-                  : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-slate-300'
-              }`}
-              title="Выбрать L-систему для перемещения"
-            >
-              L-Система
-            </button>
 
-            <button
-              type="button"
-              onClick={() => setCombinedDragTarget('ca')}
-              className={`px-2 py-0.5 rounded text-[10px] transition cursor-pointer font-sans border ${
-                combinedDragTarget === 'ca'
-                  ? 'bg-rose-600/35 border-rose-500 font-bold text-white'
-                  : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-slate-300'
-              }`}
-              title="Выбрать Автомат для перемещения"
-            >
-              Автомат
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setCombinedDragTarget('viewport');
-                if (setSelectedCAShapeId) setSelectedCAShapeId(null);
-              }}
-              className={`px-2 py-0.5 rounded text-[10px] transition cursor-pointer font-sans border ${
-                combinedDragTarget === 'viewport'
-                  ? 'bg-slate-800 border-slate-700 font-bold text-slate-200 animate-pulse'
-                  : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-slate-400 hover:text-slate-300'
-              }`}
-              title="Снять выделение (перемещать камеру)"
-            >
-              Деселект / Deselect
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setLsManOffset({ x: 0, y: 0 });
-                setCaManOffset({ x: 0, y: 0 });
-              }}
-              className="text-[9px] font-bold text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 px-1.5 py-0.5 rounded cursor-pointer transition font-mono ml-1"
-              title="Сбросить все сдвиги в центр"
-            >
-              Сброс сдвигов
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Absolute multi-L-system manager in top-right */}
       {isCombinedActive && (
-        <div className="absolute top-4 right-4 z-40 w-72 bg-slate-950/90 backdrop-blur-md p-4 rounded-xl border border-slate-800/80 shadow-2xl flex flex-col gap-3 text-slate-200 pointer-events-auto select-none">
-          <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
-            <div className="flex items-center gap-1.5">
-              <Compass className="w-4 h-4 text-rose-400 rotate-45" />
-              <span className="font-sans font-bold text-[11px] uppercase tracking-wider text-slate-300">Слои и разметки (Combined)</span>
+        <div className="absolute top-4 right-4 z-40 w-72 bg-slate-900 border border-slate-800/80 flex flex-col gap-3 text-slate-200 pointer-events-auto select-none p-4 rounded-xl backdrop-blur-md">
+          <div className="flex items-center justify-between pb-1">
+            <div className="flex items-center gap-2">
+              <svg viewBox="0 0 100 100" className="w-[15px] h-[15px] stroke-white fill-none stroke-[8]" strokeLinecap="round" strokeLinejoin="round">
+                {/* Main Trunk */}
+                <line x1="50" y1="95" x2="50" y2="50" />
+                {/* First split Left & Right */}
+                <line x1="50" y1="50" x2="30" y2="30" />
+                <line x1="50" y1="50" x2="70" y2="30" />
+                {/* Left Split splits into vertical & horizontal */}
+                <line x1="30" y1="30" x2="30" y2="15" />
+                <line x1="30" y1="30" x2="15" y2="30" />
+                {/* Right Split splits into vertical & horizontal */}
+                <line x1="70" y1="30" x2="70" y2="15" />
+                <line x1="70" y1="30" x2="85" y2="30" />
+              </svg>
+              <span className="font-sans font-black text-xs uppercase tracking-widest text-slate-200">Слои</span>
             </div>
             <button
               type="button"
               onClick={() => setIsLayersPanelCollapsed(!isLayersPanelCollapsed)}
-              className="p-1 text-slate-500 hover:text-slate-300 transition bg-slate-900 hover:bg-slate-850 border border-slate-850 rounded hover:border-slate-850 flex items-center justify-center cursor-pointer"
+              className="p-1 text-slate-400 hover:text-white transition bg-slate-950/60 hover:bg-slate-950 border border-slate-800 rounded flex items-center justify-center cursor-pointer"
               title={isLayersPanelCollapsed ? "Развернуть" : "Свернуть"}
             >
               {isLayersPanelCollapsed ? <Plus className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
@@ -4889,134 +4918,171 @@ export default function ArtCanvas({
           {!isLayersPanelCollapsed && (
             <>
               <div className="flex flex-col gap-1.5">
-                <span className="font-mono text-[9px] text-slate-400 uppercase tracking-wider font-semibold">Список L-систем ({combinedLSystems.length})</span>
+                <span className="font-mono text-[9px] text-slate-400 uppercase tracking-wider font-semibold">
+                  Список слоев ({combinedLSystems.length + (isCaEnabledInCombined ? 1 : 0)})
+                </span>
                 <div className="max-h-[140px] overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+                  {/* Cellular Automata Grid as a layer */}
+                  {isCaEnabledInCombined && (
+                    <div
+                      onClick={() => {
+                        setCombinedDragTarget('ca');
+                      }}
+                      className={`flex items-center justify-between px-2 py-1 rounded border text-[10px] cursor-pointer transition ${
+                        combinedDragTarget === 'ca'
+                          ? 'bg-rose-650/45 border-rose-500/80 text-white font-bold animate-pulse'
+                          : 'bg-slate-950/40 hover:bg-slate-950/60 border-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 py-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                        <span className="truncate text-[10.5px]">Клеточный автомат (CA)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsCaEnabledInCombined(false);
+                          if (combinedDragTarget === 'ca') {
+                            setCombinedDragTarget('lsystem');
+                            if (combinedLSystems.length > 0 && !selectedCombinedLSystemId) {
+                              setSelectedCombinedLSystemId(combinedLSystems[0].id);
+                            }
+                          }
+                        }}
+                        className="p-1 hover:text-red-400 text-slate-400 hover:bg-slate-800/80 rounded transition cursor-pointer shrink-0"
+                        title="Исключить автомат"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* L-System layers */}
                   {combinedLSystems.map((item, idx) => {
                     const isSelected = item.id === selectedCombinedLSystemId && combinedDragTarget === 'lsystem';
+                    const isDragOver = idx === dragOverLayerIndex;
+                    const isDragging = idx === draggedLayerIndex;
                     return (
                       <div
                         key={item.id}
+                        draggable
+                        onDragStart={(e) => {
+                          setDraggedLayerIndex(idx);
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                        }}
+                        onDragEnter={(e) => {
+                          e.preventDefault();
+                          setDragOverLayerIndex(idx);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedLayerIndex(null);
+                          setDragOverLayerIndex(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggedLayerIndex !== null) {
+                            moveCombinedLayer(draggedLayerIndex, idx);
+                          }
+                          setDraggedLayerIndex(null);
+                          setDragOverLayerIndex(null);
+                        }}
                         onClick={() => {
                           setSelectedCombinedLSystemId(item.id);
                           setCombinedDragTarget('lsystem');
                         }}
-                        className={`flex items-center justify-between px-2 py-1.5 rounded border text-[10px] cursor-pointer transition ${
+                        className={`flex items-center justify-between px-2 py-1 rounded border text-[10px] cursor-pointer transition ${
                           isSelected
-                            ? 'bg-indigo-600/30 border-indigo-500 text-white font-bold'
-                            : 'bg-slate-900/60 hover:bg-slate-900 border-slate-850 text-slate-300'
-                        }`}
+                            ? 'bg-indigo-650/45 border-indigo-500/80 text-white font-bold'
+                            : isDragOver
+                            ? 'bg-indigo-950/80 border-indigo-500/80 border-dashed text-white font-bold'
+                            : 'bg-slate-950/40 hover:bg-slate-950/60 border-slate-800 text-slate-300'
+                        } ${isDragging ? 'opacity-30' : ''}`}
                       >
-                        <span className="truncate">{item.name || `L-System ${idx + 1}`}</span>
-                        <span className="font-mono text-[9px] text-slate-400">{(item.scale ?? 1.0).toFixed(2)}x</span>
+                        <div className="flex items-center gap-2 min-w-0 py-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+                          <span className="truncate text-[10.5px]">{item.name || `Фрактал ${idx + 1}`}</span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={combinedLSystems.length <= 1}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (combinedLSystems.length <= 1) return;
+                            const remaining = combinedLSystems.filter(x => x.id !== item.id);
+                            setCombinedLSystems(remaining);
+                            if (selectedCombinedLSystemId === item.id) {
+                              const activeItem = remaining[remaining.length - 1];
+                              setSelectedCombinedLSystemId(activeItem.id);
+                            }
+                          }}
+                          className={`p-1 rounded transition shrink-0 ${
+                            combinedLSystems.length <= 1 
+                              ? 'text-slate-600 cursor-not-allowed opacity-30' 
+                              : 'hover:text-red-400 text-slate-400 hover:bg-slate-800/80 cursor-pointer'
+                          }`}
+                          title="Удалить L-систему"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* Scale Control for Selected Elements */}
-              {combinedDragTarget === 'lsystem' && selectedCombinedLSystemId && (
-                <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/60 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-sans text-slate-400 font-semibold uppercase">Масштаб фрактала</span>
-                    <span className="text-[10px] font-mono text-indigo-400 font-bold">
-                      {((combinedLSystems.find(x => x.id === selectedCombinedLSystemId)?.scale ?? 1.0) * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCombinedLSystems(prev => prev.map(x => x.id === selectedCombinedLSystemId ? { ...x, scale: Math.max(0.1, (x.scale ?? 1.0) - 0.1) } : x));
-                      }}
-                      className="w-6 h-6 flex items-center justify-center bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 hover:border-slate-600 text-slate-300 font-bold rounded cursor-pointer text-xs"
-                    >
-                      -
-                    </button>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="4.0"
-                      step="0.05"
-                      value={combinedLSystems.find(x => x.id === selectedCombinedLSystemId)?.scale ?? 1.0}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setCombinedLSystems(prev => prev.map(x => x.id === selectedCombinedLSystemId ? { ...x, scale: val } : x));
-                      }}
-                      className="flex-1 accent-indigo-500 h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCombinedLSystems(prev => prev.map(x => x.id === selectedCombinedLSystemId ? { ...x, scale: Math.min(10, (x.scale ?? 1.0) + 0.1) } : x));
-                      }}
-                      className="w-6 h-6 flex items-center justify-center bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 hover:border-slate-600 text-slate-300 font-bold rounded cursor-pointer text-xs"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              )}
 
-              {/* Scale Control for CA Grid */}
-              {combinedDragTarget === 'ca' && (
-                <div className="bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/60 flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-sans text-slate-400 font-semibold uppercase">Масштаб автомата (CA)</span>
-                    <span className="text-[10px] font-mono text-rose-400 font-bold">{(caScale * 100).toFixed(0)}%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCaScale(Math.max(0.1, caScale - 0.1))}
-                      className="w-6 h-6 flex items-center justify-center bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 hover:border-slate-600 text-slate-300 font-bold rounded cursor-pointer text-xs"
-                    >
-                      -
-                    </button>
-                    <input
-                      type="range"
-                      min="0.1"
-                      max="4.0"
-                      step="0.05"
-                      value={caScale}
-                      onChange={(e) => setCaScale(parseFloat(e.target.value))}
-                      className="flex-1 accent-rose-500 h-1 bg-slate-850 rounded-lg appearance-none cursor-pointer"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setCaScale(Math.min(10, caScale + 0.1))}
-                      className="w-6 h-6 flex items-center justify-center bg-slate-800 hover:bg-slate-700 active:scale-95 border border-slate-700 hover:border-slate-600 text-slate-300 font-bold rounded cursor-pointer text-xs"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {/* Action Layer Controls */}
-              <div className="flex items-center gap-2 border-t border-slate-800/60 pt-3">
-                <button
-                  type="button"
-                  onClick={addCombinedLSystem}
-                  className="flex-1 text-[10px] font-medium bg-gradient-to-r from-rose-500 via-pink-500 to-indigo-500 hover:opacity-95 active:scale-95 rounded-lg py-1.5 text-white shadow-md transition cursor-pointer font-sans text-center flex items-center justify-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Добавить L-систему</span>
-                </button>
+              <div className="flex flex-col gap-2 border-t border-slate-800/60 pt-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={addCombinedLSystem}
+                    className="flex-1 text-[10px] font-semibold bg-slate-950/40 hover:bg-slate-950/80 border border-slate-800/80 hover:border-slate-700/80 active:scale-95 rounded-lg py-2 text-white transition cursor-pointer flex items-center justify-center gap-2"
+                    title="Добавить L-систему фрактала (+ L-System)"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                    <svg viewBox="0 0 100 100" className="w-[15px] h-[15px] stroke-white fill-none stroke-[8.5]" strokeLinecap="round" strokeLinejoin="round">
+                      {/* Main Trunk */}
+                      <line x1="50" y1="95" x2="50" y2="50" />
+                      {/* First split Left & Right */}
+                      <line x1="50" y1="50" x2="30" y2="30" />
+                      <line x1="50" y1="50" x2="70" y2="30" />
+                      {/* Left Split splits into vertical & horizontal */}
+                      <line x1="30" y1="30" x2="30" y2="15" />
+                      <line x1="30" y1="30" x2="15" y2="30" />
+                      {/* Right Split splits into vertical & horizontal */}
+                      <line x1="70" y1="30" x2="70" y2="15" />
+                      <line x1="70" y1="30" x2="85" y2="30" />
+                    </svg>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={deleteSelectedLSystem}
-                  disabled={combinedLSystems.length <= 1}
-                  className={`text-[10px] font-medium px-2.5 py-1.5 rounded-lg transition border flex items-center justify-center gap-1 cursor-pointer ${
-                    combinedLSystems.length <= 1
-                      ? 'bg-slate-900 border-slate-850 text-slate-600 cursor-not-allowed'
-                      : 'bg-slate-950 hover:bg-slate-900 border-slate-800 text-red-400 hover:text-red-300 hover:border-red-500/20 active:scale-95'
-                  }`}
-                  title="Удалить выбранный слой L-системы"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                  <button
+                    type="button"
+                    disabled={isCaEnabledInCombined}
+                    onClick={() => {
+                      setIsCaEnabledInCombined(true);
+                      setCombinedDragTarget('ca');
+                    }}
+                    className={`flex-1 text-[10px] border rounded-lg py-2 transition flex items-center justify-center gap-2 ${
+                      isCaEnabledInCombined
+                        ? 'bg-slate-950/10 border-slate-900/40 text-slate-700 cursor-not-allowed opacity-30'
+                        : 'bg-slate-950/40 border-slate-800/80 hover:border-slate-700/80 hover:bg-slate-950/80 text-white active:scale-95 cursor-pointer'
+                    }`}
+                    title="Добавить Клеточный Автомат CA (+ Cellular Automata)"
+                  >
+                    <Plus className={`w-3.5 h-3.5 ${isCaEnabledInCombined ? 'text-slate-700' : 'text-rose-450'}`} />
+                    <svg viewBox="0 0 100 100" className={`w-[15px] h-[15px] stroke-none fill-current ${isCaEnabledInCombined ? 'text-slate-700' : 'text-rose-400'}`}>
+                      <path d="M 0,100 L 50,100 L 25,56.7 Z" />
+                      <path d="M 50,100 L 100,100 L 75,56.7 Z" />
+                      <path d="M 25,56.7 L 75,56.7 L 50,13.4 Z" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </>
           )}

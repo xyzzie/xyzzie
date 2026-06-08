@@ -318,9 +318,11 @@ interface SidebarProps {
   setCaShapes?: React.Dispatch<React.SetStateAction<CAShape[]>>;
   selectedCAShapeId?: string | null;
   setSelectedCAShapeId?: (val: string | null) => void;
+  blocksHue?: number;
 }
 
 export default function Sidebar({
+  blocksHue = 250,
   mode,
   axiom,
   setAxiom,
@@ -460,7 +462,6 @@ export default function Sidebar({
   const tc = THEME_MAP[uiTheme] || THEME_MAP.indigo;
 
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => ({
-    presets: true,
     lsystem: mode !== 'lsystem' && mode !== 'combined',
     ca: mode !== 'ca' && mode !== 'combined',
     pen: mode !== 'pen' && mode !== 'combined',
@@ -471,7 +472,6 @@ export default function Sidebar({
 
   useEffect(() => {
     setCollapsed({
-      presets: true,
       lsystem: mode !== 'lsystem' && mode !== 'combined',
       ca: mode !== 'ca' && mode !== 'combined',
       pen: mode !== 'pen' && mode !== 'combined',
@@ -533,60 +533,34 @@ export default function Sidebar({
   return (
     <aside id="panel" className="w-80 bg-slate-900 border-l border-slate-800 flex flex-col h-full overflow-y-auto select-none shrink-0 scrollbar-thin scrollbar-thumb-slate-800">
       
-      {/* SECTION: PRESETS */}
-      <div className="border-b border-slate-800/80 p-5">
-        <div 
-          className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold flex items-center justify-between cursor-pointer select-none group"
-          onClick={() => toggleSection('presets')}
-          onDoubleClick={() => toggleSection('presets')}
-          title="Двойной клик или клик для сворачивания / Double-click or click to collapse"
-        >
-          <div className="flex items-center gap-1.5 group-hover:text-slate-300 transition-colors">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Generative Presets / Пресеты</span>
-          </div>
-          <span className="text-slate-500 group-hover:text-slate-350 transition-colors">
-            {collapsed.presets ? <Plus className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
-          </span>
-        </div>
-        
-        <AnimatePresence initial={false}>
-          {!collapsed.presets && (
-            <motion.div
-              initial={{ height: 0, opacity: 0, marginTop: 0 }}
-              animate={{ height: 'auto', opacity: 1, marginTop: 12 }}
-              exit={{ height: 0, opacity: 0, marginTop: 0 }}
-              transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className="overflow-hidden"
-            >
-              <div className="grid grid-cols-2 gap-2">
-                {ESTABLISHED_PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => onApplyPreset(p)}
-                    className="py-1.5 px-2 bg-slate-950/40 hover:bg-slate-950/80 border border-slate-800/80 text-slate-300 hover:text-white font-mono text-[10px] tracking-wide rounded-md transition-all active:scale-95 text-center truncate"
-                  >
-                    {p.name.replace(' Symmetric', '').replace(' Space', '').replace(' Curve', '')}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
       {/* SECTION: L-SYSTEM CONFIG (Hidden in CA only) */}
       {(mode === 'lsystem' || mode === 'combined' || mode === 'pen' || (mode === 'kaleidoscope' && (kaleidoscopeSource === 'lsystem' || kaleidoscopeSource === 'combined' || kaleidoscopeSource === 'pen'))) && (
-        <div className="border-b border-slate-800/80 p-5">
+        <div className="border-b border-slate-800/80 p-3 px-4">
           <div 
             className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold flex items-center justify-between cursor-pointer select-none group"
             onClick={() => toggleSection('lsystem')}
             onDoubleClick={() => toggleSection('lsystem')}
             title="Двойной клик или клик для сворачивания / Double-click or click to collapse"
           >
-            <div className="flex items-center gap-1.5 group-hover:text-slate-300 transition-colors">
-              <Compass className="w-3.5 h-3.5 text-rose-400 animate-spin-slow" />
-              <span>Fractal Grammar / Фракталы L-System</span>
+            <div className="flex items-center gap-2 group-hover:text-slate-300 transition-colors">
+              <svg viewBox="0 0 100 100" className="w-[15px] h-[15px] stroke-slate-300 fill-none stroke-[8.0]" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="50" y1="95" x2="50" y2="50" />
+                <line x1="50" y1="50" x2="30" y2="30" />
+                <line x1="50" y1="50" x2="70" y2="30" />
+                <line x1="30" y1="30" x2="30" y2="15" />
+                <line x1="30" y1="30" x2="15" y2="30" />
+                <line x1="70" y1="30" x2="70" y2="15" />
+                <line x1="70" y1="30" x2="85" y2="30" />
+                <line x1="30" y1="15" x2="20" y2="5" />
+                <line x1="30" y1="15" x2="40" y2="5" />
+                <line x1="70" y1="15" x2="60" y2="5" />
+                <line x1="70" y1="15" x2="80" y2="5" />
+                <line x1="15" y1="30" x2="5" y2="20" />
+                <line x1="15" y1="30" x2="5" y2="40" />
+                <line x1="85" y1="30" x2="95" y2="20" />
+                <line x1="85" y1="30" x2="95" y2="40" />
+              </svg>
+              <span>L-system Grammar</span>
             </div>
             <span className="text-slate-500 group-hover:text-slate-350 transition-colors">
               {collapsed.lsystem ? <Plus className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
@@ -603,32 +577,24 @@ export default function Sidebar({
                 className="overflow-hidden space-y-4"
               >
 
-          {/* Quick L-system formulas preset library */}
-          <div className="space-y-2 bg-slate-950/25 p-2.5 rounded border border-slate-800/60 shadow-inner">
-            <div className="flex justify-between items-center">
-              <span className="font-mono text-[9px] text-teal-400 uppercase tracking-wider font-semibold">🔮 Быстрые Формулы (Готовые Шаблоны)</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const randomPreset = ESTABLISHED_PRESETS[Math.floor(Math.random() * ESTABLISHED_PRESETS.length)];
-                  onApplyPreset(randomPreset);
-                  triggerRecompute();
-                }}
-                className="text-[9px] font-mono text-rose-400 hover:text-rose-300 transition flex items-center gap-1 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 active:scale-95"
-                title="Подставить случайные правила"
-              >
-                <RefreshCw className="w-2.5 h-2.5" />
-                <span>🎲 Случайная</span>
-              </button>
+          {/* Block 1: Axiom & Substitution Rules (styled by blocksHue - bright but dull/muted background & borders) */}
+          <div 
+            className="p-3 rounded-lg border shadow-sm space-y-3.5"
+            style={{
+              backgroundColor: `hsla(${blocksHue}, 40%, 12%, 0.22)`,
+              borderColor: `hsla(${blocksHue}, 40%, 28%, 0.18)`
+            }}
+          >
+            <div className="text-[9.5px] font-mono font-bold uppercase tracking-[0.14em]" style={{ color: `hsl(${blocksHue}, 60%, 75%)` }}>
+              🖨️ Axiom & Substitution Grammar
             </div>
-            
-            <p className="text-[9px] text-slate-500 leading-normal font-sans">
-              Нажмите на готовый шаблон ниже — система сама вставит нужные аксиомы и правила переписывания:
-            </p>
 
+            {/* Quick L-system formulas preset library */}
             <div className="grid grid-cols-2 gap-1.5 pt-1">
               {ESTABLISHED_PRESETS.map((p) => {
-                const isSelected = axiom === p.axiom && rules.length === p.rules.length && rules.every((r, idx) => r.from === p.rules[idx]?.from);
+                const isSelected = axiom === p.axiom && 
+                  rules.length === p.rules.length && 
+                  rules.every((r, idx) => r.from === p.rules[idx]?.from && r.to === p.rules[idx]?.to);
                 return (
                   <button
                     key={p.id}
@@ -648,156 +614,195 @@ export default function Sidebar({
                 );
               })}
             </div>
-          </div>
 
-          {/* Axiom Input */}
-          <div className="flex items-center justify-between gap-4">
-            <span className="font-mono text-xs text-slate-400">Axiom (Seed)</span>
-            <input
-              type="text"
-              value={axiom}
-              onChange={(e) => {
-                setAxiom(e.target.value);
-                triggerRecompute();
-              }}
-              className="w-28 bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono text-center text-xs text-white uppercase focus:outline-none focus:border-rose-500 transition-colors"
-            />
-          </div>
-
-          {/* Rules List */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[9px] tracking-wider text-slate-500 uppercase">Substitutions Map</span>
-              <button
-                onClick={addRuleRow}
-                className="flex items-center gap-1 text-[9px] text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                <Plus className="w-3 h-3" />
-                <span>Add Rule</span>
-              </button>
-            </div>
-
-            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-              {rules.map((rule, idx) => (
-                <div key={idx} className="flex gap-1.5 items-center">
-                  <input
-                    type="text"
-                    value={rule.from}
-                    placeholder="F"
-                    maxLength={1}
-                    onChange={(e) => updateRuleFrom(idx, e.target.value.toUpperCase())}
-                    className="w-8 bg-slate-950 border border-slate-800 text-center rounded py-1 font-mono text-xs text-white uppercase focus:outline-none focus:border-rose-500"
-                  />
-                  <span className="text-slate-600 text-xs font-mono">→</span>
-                  <input
-                    type="text"
-                    value={rule.to}
-                    placeholder="Production stream"
-                    onChange={(e) => updateRuleTo(idx, e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-800 px-2 rounded py-1 font-mono text-xs text-indigo-200 focus:outline-none focus:border-indigo-500"
-                  />
-                  <button
-                    onClick={() => removeRuleRow(idx)}
-                    className="text-slate-600 hover:text-rose-400 transition-colors p-1"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Iteration Slider */}
-          <div className="space-y-1.5 pt-2">
-            <div className="flex justify-between font-mono text-xs">
-              <span className="text-slate-400">Iterations (Gen)</span>
-              <span className="text-white font-bold">{iterations}</span>
-            </div>
-            <input
-              type="range"
-              min={1}
-              max={8}
-              value={iterations}
-              onChange={(e) => {
-                const val = parseInt(e.target.value);
-                setIterations(val);
-                setPenDepth(Math.max(1, Math.min(6, val)));
-                triggerRecompute();
-              }}
-              className="w-full h-[3px] bg-slate-950 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-            />
-          </div>
-
-          {/* Buds Iterations Slider Container */}
-          <div className="space-y-4 pt-1.5 border-t border-slate-900 bg-slate-900/10 p-2.5 rounded-lg border">
-            <div className="flex justify-between items-center">
-              <div className="font-mono text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Buds Iterations (End Tips)</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const nextBuds = [...budIterations, 1];
-                  setBudIterations(nextBuds);
+            {/* Axiom Input */}
+            <div className="flex items-center justify-between gap-4 pt-1">
+              <span className="font-mono text-xs text-slate-400">Axiom (Seed)</span>
+              <input
+                type="text"
+                value={axiom}
+                onChange={(e) => {
+                  setAxiom(e.target.value);
                   triggerRecompute();
                 }}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-mono text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
-                title="Add a nested child tier of end tips"
-              >
-                <Plus className="w-3 h-3" />
-                <span>Child Tier</span>
-              </button>
+                className="w-28 bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono text-center text-xs text-white uppercase focus:outline-none focus:border-rose-500 transition-colors"
+              />
             </div>
 
-            <div className="space-y-3.5">
-              {budIterations.map((val, idx) => (
-                <div key={idx} className="space-y-1 bg-slate-950/20 p-2 rounded border border-slate-900">
-                  <div className="flex justify-between items-center font-mono text-[10px]">
-                    <span className="text-slate-400 font-medium">
-                      {idx === 0 ? "Tier 1 (Outer Tips)" : `Tier ${idx + 1} (Nested Tips)`}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-emerald-400 font-bold bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-900/30">
-                        {val === 0 ? 'OFF' : `${val} gen`}
-                      </span>
-                      {idx > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const nextBuds = budIterations.filter((_, i) => i !== idx);
-                            setBudIterations(nextBuds);
-                            triggerRecompute();
-                          }}
-                          className="p-1 rounded text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                          title="Remove tier"
-                        >
-                          <Trash2 className="w-3" style={{ height: '12px', width: '12px' }} />
-                        </button>
-                      )}
-                    </div>
+            {/* Rules List */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[9px] tracking-wider text-slate-500 uppercase">Substitutions Map</span>
+                <button
+                  onClick={addRuleRow}
+                  className="flex items-center gap-1 text-[9px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Add Rule</span>
+                </button>
+              </div>
+
+              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2.5">
+                {rules.map((rule, idx) => (
+                  <div key={idx} className="flex gap-1.5 items-center w-full">
+                    <input
+                      type="text"
+                      value={rule.from}
+                      placeholder="F"
+                      maxLength={1}
+                      onChange={(e) => updateRuleFrom(idx, e.target.value.toUpperCase())}
+                      className="w-8 shrink-0 bg-slate-950 border border-slate-800 text-center rounded py-1 font-mono text-xs text-white uppercase focus:outline-none focus:border-rose-500"
+                    />
+                    <span className="text-slate-600 text-xs font-mono shrink-0">→</span>
+                    <input
+                      type="text"
+                      value={rule.to}
+                      placeholder="Production stream"
+                      onChange={(e) => updateRuleTo(idx, e.target.value)}
+                      className="flex-1 min-w-0 bg-slate-950 border border-slate-800 px-2 rounded py-1 font-mono text-xs text-indigo-200 focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      onClick={() => removeRuleRow(idx)}
+                      className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer hover:bg-rose-500/10 rounded transition shrink-0"
+                      title="Удалить правило"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Block 2: Iterations & Generations (styled with a shifted offset hue) */}
+          <div 
+            className="p-3 rounded-lg border shadow-sm space-y-3"
+            style={{
+              backgroundColor: `hsla(${(blocksHue + 120) % 360}, 40%, 12%, 0.22)`,
+              borderColor: `hsla(${(blocksHue + 120) % 360}, 40%, 28%, 0.18)`
+            }}
+          >
+            <div className="text-[9.5px] font-mono font-bold uppercase tracking-[0.14em]" style={{ color: `hsl(${(blocksHue + 120) % 360}, 60%, 75%)` }}>
+              🌱 Iterations & Generations
+            </div>
+
+            <div className="flex gap-3 items-start py-1 select-none">
+              {/* Left: Little L-System tree SVG logo (no background, transparent) */}
+              <div className="w-5 h-5 shrink-0 flex items-center justify-center pt-[3px]">
+                <svg viewBox="0 0 100 100" className="w-[15px] h-[15px] stroke-indigo-400 fill-none stroke-[8.0]" strokeLinecap="round" strokeLinejoin="round">
+                  {/* Main Trunk */}
+                  <line x1="50" y1="95" x2="50" y2="50" />
+                  {/* First split Left & Right */}
+                  <line x1="50" y1="50" x2="30" y2="30" />
+                  <line x1="50" y1="50" x2="70" y2="30" />
+                  {/* Left Split splits into vertical & horizontal */}
+                  <line x1="30" y1="30" x2="30" y2="15" />
+                  <line x1="30" y1="30" x2="15" y2="30" />
+                  {/* Right Split splits into vertical & horizontal */}
+                  <line x1="70" y1="30" x2="70" y2="15" />
+                  <line x1="70" y1="30" x2="85" y2="30" />
+                  {/* Top Left Vertical splits up-left & up-right */}
+                  <line x1="30" y1="15" x2="20" y2="5" />
+                  <line x1="30" y1="15" x2="40" y2="5" />
+                  {/* Top Right Vertical splits up-left & up-right */}
+                  <line x1="70" y1="15" x2="60" y2="5" />
+                  <line x1="70" y1="15" x2="80" y2="5" />
+                  {/* Outer Left Horizontal splits up-left & down-left */}
+                  <line x1="15" y1="30" x2="5" y2="20" />
+                  <line x1="15" y1="30" x2="5" y2="40" />
+                  {/* Outer Right Horizontal splits up-right & down-right */}
+                  <line x1="85" y1="30" x2="95" y2="20" />
+                  <line x1="85" y1="30" x2="95" y2="40" />
+                </svg>
+              </div>
+
+              {/* Right: Inline Controls */}
+              <div className="flex-1 min-w-0 flex flex-col gap-2.5">
+                {/* Parent Iterations */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center font-mono text-[10.5px]">
+                    <span className="text-slate-300 font-semibold">Parent (Base) iterations</span>
+                    <span className="text-white font-bold bg-slate-950/40 px-1.5 py-0.5 rounded border border-slate-800/40">{iterations}</span>
+                  </div>
                   <input
                     type="range"
-                    min={0}
-                    max={5}
-                    value={val}
+                    min={1}
+                    max={8}
+                    value={iterations}
                     onChange={(e) => {
-                      const nextBuds = [...budIterations];
-                      nextBuds[idx] = parseInt(e.target.value);
-                      setBudIterations(nextBuds);
+                      const val = parseInt(e.target.value);
+                      setIterations(val);
+                      setPenDepth(Math.max(1, Math.min(6, val)));
                       triggerRecompute();
                     }}
-                    className="w-full h-[3px] bg-slate-950 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    className="w-full h-[3px] bg-slate-950 rounded-lg appearance-none cursor-pointer"
+                    style={{ accentColor: `hsl(${(blocksHue + 120) % 360}, 65%, 55%)` }}
                   />
                 </div>
-              ))}
-            </div>
 
-            <p className="text-[9px] text-slate-500 leading-normal">
-              Добавляет рекурсивные веточки и детали только на самые мелкие кончики (бутоны). Нажмите <strong>+ Child Tier</strong> чтобы вырастить еще меньшие веточки из предыдущих бутонов!
-            </p>
+                {/* Child (Buds) iterations and + Add Child link/button */}
+                <div className="space-y-2 border-t border-slate-800/40 pt-2.5">
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextBuds = [...budIterations, 1];
+                        setBudIterations(nextBuds);
+                        triggerRecompute();
+                      }}
+                      className="flex items-center gap-1 text-[9px] cursor-pointer"
+                      style={{ color: `hsl(${(blocksHue + 120) % 360}, 65%, 65%)` }}
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Add Child</span>
+                    </button>
+                  </div>
+
+                  {/* List of Buds child tiers */}
+                  {budIterations.length > 0 && (
+                    <div className="space-y-1 pt-0.5">
+                      {budIterations.map((val, idx) => (
+                        <div key={idx} className="flex items-center gap-3 py-1 font-mono text-[10.5px]">
+                          <span className="w-12 shrink-0 text-slate-400 font-semibold">
+                            Tier {idx + 1}
+                          </span>
+                          <div className="flex-1 flex items-center gap-2 min-w-0">
+                            <input
+                              type="range"
+                              min={0}
+                              max={5}
+                              value={val}
+                              onChange={(e) => {
+                                const nextBuds = [...budIterations];
+                                nextBuds[idx] = parseInt(e.target.value);
+                                setBudIterations(nextBuds);
+                                triggerRecompute();
+                              }}
+                              className="flex-1 h-[3px] bg-slate-950 rounded-lg appearance-none cursor-pointer min-w-0"
+                              style={{ accentColor: `hsl(${(blocksHue + 120) % 360}, 75%, 45%)` }}
+                            />
+                            <span className="text-[9.5px] font-mono font-bold shrink-0 min-w-[22px] text-right" style={{ color: `hsl(${(blocksHue + 120) % 360}, 65%, 65%)` }}>
+                              {val === 0 ? 'OFF' : `${val}`}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextBuds = budIterations.filter((_, i) => i !== idx);
+                              setBudIterations(nextBuds);
+                              triggerRecompute();
+                            }}
+                            className="p-1 rounded text-red-400/85 hover:text-red-400 hover:bg-slate-950/20 transition-colors cursor-pointer shrink-0"
+                            title="Remove tier"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Turning Angle */}
@@ -939,15 +944,10 @@ export default function Sidebar({
           </div>
 
           {/* Smooth Curves Switch */}
-          <div className="flex items-center justify-between p-2 rounded bg-indigo-500/5 border border-indigo-500/10 hover:border-indigo-500/20 transition-all duration-200 mt-1">
-            <div className="space-y-0.5">
-              <span className="text-xs font-mono text-slate-300 flex items-center gap-1.5 font-semibold">
-                ✨ Плавные Ветви (Без Углов)
-              </span>
-              <p className="text-[10px] text-slate-500 leading-normal font-sans">
-                Сглаживает резкие стыки с помощью квадратичных кривых Безье
-              </p>
-            </div>
+          <div className="flex items-center justify-between py-1 mt-1">
+            <span className="text-xs font-mono text-slate-300 font-semibold">
+              Smooth Branch
+            </span>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -965,18 +965,7 @@ export default function Sidebar({
           <div className="space-y-2 pt-2 border-t border-slate-900/60 mt-3">
             <div className="flex justify-between items-center font-mono text-xs">
               <span className="text-slate-400">Randomizer Seed</span>
-              <span className="text-slate-600 text-[10px]">(mutates form & noise)</span>
             </div>
-
-            {stochastic === 0 ? (
-              <div className="text-[10px] text-amber-500/90 bg-amber-500/10 border border-amber-500/20 rounded p-2 leading-relaxed">
-                👉 <strong>L-системы детерминированы по умолчанию</strong>. Семя генератора меняет форму только если включена случайная мутация (включится автоматически, если нажать на семя ниже).
-              </div>
-            ) : (
-              <div className="text-[10px] text-teal-400/90 bg-teal-500/10 border border-teal-500/25 rounded p-1.5 leading-relaxed font-mono">
-                ✨ Мутация активна ({Math.round(stochastic * 100)}%). Семя {seed} переопределяет случайную структуру.
-              </div>
-            )}
             
             {/* Quick pre-selected beautiful seeds */}
             <div className="grid grid-cols-2 gap-1 font-mono text-[10px]">
@@ -1079,7 +1068,11 @@ export default function Sidebar({
             title="Двойной клик или клик для сворачивания / Double-click or click to collapse"
           >
             <div className="flex items-center gap-1.5 group-hover:text-slate-300 transition-colors">
-              <Activity className="w-3.5 h-3.5 text-emerald-400" />
+              <svg viewBox="0 0 100 100" className="w-[14px] h-[14px] fill-rose-400 group-hover:fill-rose-300 stroke-none transition-colors">
+                <path d="M 0,100 L 50,100 L 25,56.7 Z" />
+                <path d="M 50,100 L 100,100 L 75,56.7 Z" />
+                <path d="M 25,56.7 L 75,56.7 L 50,13.4 Z" />
+              </svg>
               <span>Cellular Automata / Клеточные Автоматы</span>
             </div>
             <span className="text-slate-500 group-hover:text-slate-350 transition-colors">
@@ -1519,15 +1512,7 @@ export default function Sidebar({
                 className="overflow-hidden space-y-4"
               >
 
-          <div className="bg-slate-950/40 border border-slate-800/50 p-2.5 rounded-lg text-[10px] leading-relaxed text-slate-400 space-y-1">
-            <div><strong className="text-slate-300">Left-Click</strong> — Append segment point</div>
-            <div><strong className="text-indigo-400">Shift + Drag</strong> — Preview tree branch rotation</div>
-            <div><strong className="text-indigo-400">Shift + Click</strong> — Connect chosen rotated branch</div>
-            <div><strong className="text-emerald-400">Control</strong> (with Shift) — Lock candidates to hover</div>
-            <div><strong className="text-amber-400">Alt + Click</strong> — Sprout fully formed L-System branch</div>
-            <div><strong className="text-rose-400">Double-Click</strong> — End current open path</div>
-            <div><strong className="text-slate-500">ESC</strong> — Reset path building queue</div>
-          </div>
+
 
           {/* Branch Depth */}
           <div className="space-y-1.5">
@@ -1776,6 +1761,7 @@ export default function Sidebar({
               <option value="draw">🎨 Interactive Brush Painting</option>
               <option value="lsystem">🌿 L-System Fractal Grammar</option>
               <option value="ca">🟩 2D Cellular Automata Grid</option>
+              <option value="combined">🌀 Combined Multi-Layer / Смешанный режим</option>
               <option value="pen">🖊️ Symmetric Pen Vector Lines</option>
             </select>
           </div>
@@ -2571,222 +2557,8 @@ export default function Sidebar({
     </AnimatePresence>
   </div>
 
-  {/* PERSONAL INTERFACE CUSTOMIZER & DESIGN WORKSPACE */}
-  <div className="border-b border-slate-800/80 p-5">
-    <div 
-      className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold flex items-center justify-between cursor-pointer select-none group"
-      onClick={() => toggleSection('uiTheme')}
-      onDoubleClick={() => toggleSection('uiTheme')}
-      title="Двойной клик или клик для сворачивания / Double-click or click to collapse"
-    >
-      <div className="flex items-center gap-1.5 group-hover:text-slate-300 transition-colors font-mono font-black text-[10px]">
-        <span className="p-1 rounded bg-indigo-500/10 text-indigo-400 font-sans"><Palette className="w-3.5 h-3.5" /></span>
-        <span>UI Designer / Дизайнер UI</span>
-      </div>
-      <span className="text-slate-500 group-hover:text-slate-350 transition-colors">
-        {collapsed.uiTheme ? <Plus className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
-      </span>
-    </div>
 
-    <AnimatePresence initial={false}>
-      {!collapsed.uiTheme && (
-        <motion.div
-          initial={{ height: 0, opacity: 0, marginTop: 0 }}
-          animate={{ height: 'auto', opacity: 1, marginTop: 12 }}
-          exit={{ height: 0, opacity: 0, marginTop: 0 }}
-          transition={{ duration: 0.2, ease: 'easeInOut' }}
-          className="overflow-hidden space-y-4"
-        >
 
-          {/* Accent Color Selection */}
-          <div className="space-y-1.5 bg-slate-950/40 p-2.5 rounded-lg border border-slate-900/60">
-            <div className="flex justify-between items-center text-[10px] font-mono">
-              <span className="text-slate-400 uppercase font-semibold text-[9px]">Цвет акцента / Accent Hue</span>
-              <span className="font-bold font-mono text-[10px]" style={{ color: uiAccentColor.startsWith('var(') ? undefined : uiAccentColor }}>
-                {uiAccentColor.startsWith('var(') ? '#6366f1' : uiAccentColor}
-              </span>
-            </div>
-            
-            <div className="flex gap-2 items-center">
-              <label className="relative flex-1 inline-flex items-center justify-center cursor-pointer bg-slate-900 hover:bg-slate-800 px-3 py-1 rounded-md border border-slate-800 text-[10px] font-mono text-slate-300 hover:text-white transition active:scale-95">
-                <span>🎨 Выбрать цвет</span>
-                <input
-                  type="color"
-                  value={uiAccentColor.startsWith('var(') ? '#6366f1' : uiAccentColor}
-                  onChange={(e) => {
-                    setUiTheme('custom');
-                    setUiAccentColor(e.target.value);
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                />
-              </label>
-              
-              <input
-                type="text"
-                value={uiAccentColor.startsWith('var(') ? '#6366f1' : uiAccentColor}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-                    setUiTheme('custom');
-                    setUiAccentColor(val);
-                  }
-                }}
-                className="w-18 bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-[10px] font-mono text-white text-center focus:outline-none focus:border-indigo-500"
-                title="Введите hex код цвета"
-              />
-            </div>
-          </div>
-
-          {/* Sidebar & Toolbar Background Color */}
-          <div className="space-y-1.5 bg-slate-950/40 p-2.5 rounded-lg border border-slate-900/60">
-            <div className="flex justify-between items-center text-[10px] font-mono">
-              <span className="text-slate-400 uppercase font-semibold text-[9px]">Фон панелей / Panel Color</span>
-              <span className="font-bold text-slate-300 font-mono text-[10px]">{uiBgColor}</span>
-            </div>
-            
-            <div className="flex gap-2 items-center">
-              <label className="relative flex-1 inline-flex items-center justify-center cursor-pointer bg-slate-900 hover:bg-slate-800 px-3 py-1 rounded-md border border-slate-800 text-[10px] font-mono text-slate-300 hover:text-white transition active:scale-95">
-                <span>🌑 Выбрать фон</span>
-                <input
-                  type="color"
-                  value={uiBgColor}
-                  onChange={(e) => {
-                    setUiTheme('custom');
-                    setUiBgColor(e.target.value);
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                />
-              </label>
-              
-              <input
-                type="text"
-                value={uiBgColor}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
-                    setUiTheme('custom');
-                    setUiBgColor(val);
-                  }
-                }}
-                className="w-18 bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-[10px] font-mono text-white text-center focus:outline-none focus:border-indigo-500"
-                title="Введите hex код для цвета панелей"
-              />
-            </div>
-          </div>
-
-          {/* Interface Opacity / Transparency */}
-          <div className="space-y-1.5 bg-slate-950/40 p-2.5 rounded-lg border border-slate-900/60">
-            <div className="flex justify-between font-mono text-[10px]">
-              <span className="text-slate-400 uppercase font-semibold text-[9px]">Прозрачность / Opacity</span>
-              <span className="text-slate-200 font-bold text-[10px]">{Math.round(uiOpacity * 100)}%</span>
-            </div>
-            <input
-              type="range"
-              min={0.1}
-              max={1.0}
-              step={0.01}
-              value={uiOpacity}
-              onChange={(e) => {
-                setUiTheme('custom');
-                setUiOpacity(parseFloat(e.target.value));
-              }}
-              className="w-full h-[3px] bg-slate-950 rounded-lg appearance-none cursor-pointer"
-              style={{ accentColor: uiAccentColor.startsWith('var(') ? '#6366f1' : uiAccentColor }}
-              title="Регулировка прозрачности всего UI интерфейса"
-            />
-            <div className="flex justify-between font-mono text-[8px] text-slate-500">
-              <span>Стекло (Glass)</span>
-              <span>Сплошной (Solid)</span>
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </div>
-
-  {/* Geometry scale & rotation */}
-  <div className="p-5 border-t border-slate-900 bg-slate-950/25 space-y-4">
-    {/* Canvas Scale (for the drawing element) */}
-    <div className="space-y-1.5">
-      <div className="flex justify-between font-mono text-xs">
-        <span className="text-slate-400">Drawing Scale / Масштаб рисунка</span>
-        <span className={`font-bold ${tc.text}`}>{Math.round(scale * 100)}%</span>
-      </div>
-      <input
-        type="range"
-        min={0.05}
-        max={10.0}
-        step={0.05}
-        value={scale}
-        onChange={(e) => setScale(parseFloat(e.target.value))}
-        className="w-full h-[3px] bg-slate-950 rounded-lg appearance-none cursor-pointer"
-        style={{ accentColor: tc.color }}
-      />
-      {/* Snap/Preset buttons for Drawing Scale */}
-      <div className="flex justify-between gap-1">
-        {[0.5, 1.0, 1.5, 2.0, 3.0].map((sVal) => (
-          <button
-            key={sVal}
-            type="button"
-            onClick={() => setScale(sVal)}
-            className={`flex-1 py-1 rounded font-mono text-[9px] border transition-all ${
-              Math.abs(scale - sVal) < 0.01
-                ? `${tc.bg} text-white shadow-sm font-bold border-transparent`
-                : 'bg-slate-950/80 border-slate-900 text-slate-400 hover:text-white hover:border-slate-800'
-            }`}
-          >
-            {sVal === 1.0 ? '1.0x' : `${sVal}x`}
-          </button>
-        ))}
-      </div>
-    </div>
-
-    {/* Viewport Pitch Angle */}
-    <div className="space-y-1.5">
-      <div className="flex justify-between font-mono text-xs">
-        <span className="text-slate-400">Viewport Pitch Angle / Поворот всего</span>
-        <span className={`font-bold ${tc.text}`}>{rotation}°</span>
-      </div>
-      <input
-        type="range"
-        min={-180}
-        max={180}
-        value={rotation}
-        onChange={(e) => {
-          const val = parseFloat(e.target.value);
-          const snaps = [-180, -90, 0, 90, 180];
-          const snapThreshold = 8;
-          let snapped = val;
-          for (const snap of snaps) {
-            if (Math.abs(val - snap) <= snapThreshold) {
-              snapped = snap;
-              break;
-            }
-          }
-          setRotation(snapped);
-        }}
-        className="w-full h-[3px] bg-slate-950 rounded-lg appearance-none cursor-pointer"
-        style={{ accentColor: tc.color }}
-      />
-      {/* Snap presets */}
-      <div className="flex justify-between gap-1">
-        {[-180, -90, 0, 90, 180].map((deg) => (
-          <button
-            key={deg}
-            type="button"
-            onClick={() => setRotation(deg)}
-            className={`flex-1 py-0.5 rounded font-mono text-[9px] border transition-all ${
-              rotation === deg
-                ? `${tc.bg} text-white shadow-sm font-bold border-transparent`
-                : 'bg-slate-950 border-slate-900 text-slate-400 hover:text-white hover:border-slate-800/80'
-            }`}
-          >
-            {deg}°
-          </button>
-        ))}
-      </div>
-    </div>
-  </div>
 </aside>
   );
 }

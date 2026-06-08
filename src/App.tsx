@@ -4,20 +4,46 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { AppMode, CAType, DrawStyle, LSystemPreset, UITheme, CAShape } from './types';
 import { THEME_MAP } from './utils/theme';
 import { ESTABLISHED_PRESETS } from './data/presets';
 import Sidebar from './components/Sidebar';
 import Toolbar from './components/Toolbar';
 import ArtCanvas from './components/ArtCanvas';
-import { Compass, RotateCw, X, Download, Check, Image, Monitor, Smartphone, Maximize2, Sparkles } from 'lucide-react';
+import { Compass, RotateCw, X, Download, Check, Image, Monitor, Smartphone, Maximize2, Sparkles, Palette } from 'lucide-react';
 
 export default function App() {
   const [uiTheme, setUiTheme] = useState<UITheme>('indigo');
   const [uiAccentColor, setUiAccentColor] = useState<string>('#6366f1');
   const [uiBgColor, setUiBgColor] = useState<string>('#212121');
   const [uiOpacity, setUiOpacity] = useState<number>(0.85);
+  const [blocksHue, setBlocksHue] = useState<number>(250);
   const [kaleidoscopeMirrorAxis, setKaleidoscopeMirrorAxis] = useState<'horizontal' | 'vertical'>('horizontal');
+
+  // Custom UI colors popover states & refs
+  const [showUiPopover, setShowUiPopover] = useState<boolean>(false);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const paletteButtonRef = useRef<HTMLButtonElement | null>(null);
+  const accentColorInputRef = useRef<HTMLInputElement | null>(null);
+  const bgColorInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        popoverRef.current && 
+        !popoverRef.current.contains(event.target as Node) &&
+        paletteButtonRef.current &&
+        !paletteButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowUiPopover(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Convert hex color to custom rgba
   const hexToRgbaStr = (hexColor: string, alpha: number): string => {
@@ -89,7 +115,7 @@ export default function App() {
   // Pen parameters
   const [penDepth, setPenDepth] = useState<number>(2);
   const [penLen, setPenLen] = useState<number>(40);
-  const [adjustDrawn, setAdjustDrawn] = useState<boolean>(true);
+  const [adjustDrawn, setAdjustDrawn] = useState<boolean>(false);
 
   // Kaleidoscope parameters
   const [kaleidoscopeSegments, setKaleidoscopeSegments] = useState<number>(2);
@@ -430,6 +456,7 @@ export default function App() {
 
         {/* SIDE PANELS OPTIONS DOCK */}
         <Sidebar
+          blocksHue={blocksHue}
           mode={mode}
           axiom={axiom}
           setAxiom={setAxiom}
@@ -562,13 +589,171 @@ export default function App() {
       </div>
 
       {/* BOTTOM CONSOLE STATUS AND METRICS LOG */}
-      <footer className="bg-slate-950 border-t border-slate-800/80 px-4 py-2 flex items-center justify-between text-[10px] font-mono select-none shrink-0 z-10 text-slate-500">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-slate-400 capitalize">Console Engine Operational</span>
+      <footer className="bg-slate-900 border-t border-slate-800/80 px-4 py-1.5 flex items-center justify-between text-[10px] font-mono select-none shrink-0 z-20 text-slate-500 relative">
+        <div className="flex items-center">
+          <button
+            ref={paletteButtonRef}
+            type="button"
+            onClick={() => setShowUiPopover(!showUiPopover)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-950/20 hover:bg-slate-950/40 text-slate-400 hover:text-slate-200 border border-slate-950/30 font-semibold cursor-pointer transition active:scale-95"
+            style={{ color: showUiPopover ? 'var(--ui-accent)' : undefined }}
+            title="UI Designer / Настройка интерфейса"
+          >
+            <Palette className="w-3.5 h-3.5" />
+          </button>
         </div>
-        <div className="truncate text-slate-400 pr-10 text-right">
-          {infoText}
+
+        {/* Viewport controls directly on the footer */}
+        <div className="flex items-center gap-6 text-[10px] font-mono text-slate-400">
+          {/* Viewport Scale slider */}
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold select-none">Viewport Scale</span>
+            <input
+              type="range"
+              min={0.1}
+              max={4.0}
+              step={0.05}
+              value={scale}
+              onChange={(e) => setScale(parseFloat(e.target.value))}
+              className="w-16 sm:w-24 h-[3px] bg-slate-950 rounded appearance-none cursor-pointer custom-accent"
+              style={{ accentColor: uiAccentColor.startsWith('var(') ? '#6366f1' : uiAccentColor }}
+            />
+            <span className="text-slate-300 font-bold min-w-[32px] text-right">{Math.round(scale * 100)}%</span>
+          </div>
+
+          {/* Viewport Rotate slider */}
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] uppercase tracking-wider text-slate-500 font-semibold select-none">Viewport Rotate</span>
+            <input
+              type="range"
+              min={-180}
+              max={180}
+              value={rotation}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                const snaps = [-180, -90, 0, 90, 180];
+                const snapThreshold = 12;
+                let snapped = val;
+                for (const snap of snaps) {
+                  if (Math.abs(val - snap) <= snapThreshold) {
+                    snapped = snap;
+                    break;
+                  }
+                }
+                setRotation(snapped);
+              }}
+              className="w-16 sm:w-24 h-[3px] bg-slate-950 rounded appearance-none cursor-pointer custom-accent"
+              style={{ accentColor: uiAccentColor.startsWith('var(') ? '#6366f1' : uiAccentColor }}
+            />
+            <span className="text-slate-300 font-bold min-w-[28px] text-right">{rotation}°</span>
+          </div>
+        </div>
+
+        {/* Dropup Customizer Popover Container */}
+        <AnimatePresence>
+          {showUiPopover && (
+            <motion.div
+              ref={popoverRef}
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="absolute bottom-11 left-4 z-50 w-60 p-3.5 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl space-y-3.5"
+            >
+              {/* Panels Color */}
+              <div className="flex items-center justify-between font-sans text-xs">
+                <span className="text-slate-300 font-medium">Panels Color</span>
+                <div className="relative flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => bgColorInputRef.current?.click()}
+                    className="w-5.5 h-5.5 rounded border border-slate-700/80 shadow-md cursor-pointer hover:scale-105 active:scale-95 transition"
+                    style={{ backgroundColor: uiBgColor }}
+                    title="Выбрать цвет фона панелей"
+                  />
+                  <input
+                    ref={bgColorInputRef}
+                    type="color"
+                    value={uiBgColor}
+                    onChange={(e) => {
+                      setUiTheme('custom');
+                      setUiBgColor(e.target.value);
+                    }}
+                    className="absolute opacity-0 pointer-events-none w-0 h-0"
+                  />
+                </div>
+              </div>
+
+              {/* Accent Color */}
+              <div className="flex items-center justify-between font-sans text-xs">
+                <span className="text-slate-300 font-medium">Accent Color</span>
+                <div className="relative flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => accentColorInputRef.current?.click()}
+                    className="w-5.5 h-5.5 rounded border border-slate-700/80 shadow-md cursor-pointer hover:scale-105 active:scale-95 transition"
+                    style={{ backgroundColor: uiAccentColor.startsWith('var(') ? '#6366f1' : uiAccentColor }}
+                    title="Выбрать цвет акцента"
+                  />
+                  <input
+                    ref={accentColorInputRef}
+                    type="color"
+                    value={uiAccentColor.startsWith('var(') ? '#6366f1' : uiAccentColor}
+                    onChange={(e) => {
+                      setUiTheme('custom');
+                      setUiAccentColor(e.target.value);
+                    }}
+                    className="absolute opacity-0 pointer-events-none w-0 h-0"
+                  />
+                </div>
+              </div>
+
+              {/* UI Opacity */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/60 font-sans text-xs">
+                <div className="flex justify-between text-[10px] font-mono">
+                  <span className="text-slate-400 font-semibold text-[8.5px] uppercase">UI Opacity</span>
+                  <span className="text-slate-200 font-bold">{Math.round(uiOpacity * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={1.0}
+                  step={0.01}
+                  value={uiOpacity}
+                  onChange={(e) => {
+                    setUiTheme('custom');
+                    setUiOpacity(parseFloat(e.target.value));
+                  }}
+                  className="w-full h-[3px] bg-slate-950 rounded appearance-none cursor-pointer custom-accent"
+                  style={{ accentColor: uiAccentColor.startsWith('var(') ? '#6366f1' : uiAccentColor }}
+                />
+              </div>
+
+              {/* Blocks HUE */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/60 font-sans text-xs">
+                <div className="flex justify-between text-[10px] font-mono">
+                  <span className="text-slate-400 font-semibold text-[8.5px] uppercase">Blocks HUE</span>
+                  <span className="text-slate-200 font-bold" style={{ color: `hsl(${blocksHue}, 70%, 65%)` }}>{blocksHue}°</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={360}
+                  step={1}
+                  value={blocksHue}
+                  onChange={(e) => {
+                    setBlocksHue(parseInt(e.target.value));
+                  }}
+                  className="w-full h-[3px] bg-slate-950 rounded appearance-none cursor-pointer custom-accent"
+                  style={{ accentColor: `hsl(${blocksHue}, 70%, 55%)` }}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="text-right text-[9px] text-slate-500 font-mono select-none opacity-40">
+          L-system Editor
         </div>
       </footer>
 

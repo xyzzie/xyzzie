@@ -222,6 +222,7 @@ export default function ArtCanvas({
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const offscreenCARenderCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const tc = THEME_MAP[uiTheme] || THEME_MAP.indigo;
+  const isCombinedActive = mode === 'combined' || (mode === 'kaleidoscope' && kaleidoscopeSource === 'combined');
 
   // Viewport states: Zooom + Panning translation
   const [vpZoom, setVpZoom] = useState<number>(1.0);
@@ -326,13 +327,31 @@ export default function ArtCanvas({
   const getElementBounds = useCallback((): { minX: number; maxX: number; minY: number; maxY: number } | null => {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
 
-    if (kaleidoscopeSource === 'lsystem' || kaleidoscopeSource === 'combined') {
+    if (kaleidoscopeSource === 'lsystem') {
       if (cachedSegments && cachedSegments.length > 0) {
         for (const seg of cachedSegments) {
           minX = Math.min(minX, seg.x1, seg.x2);
           maxX = Math.max(maxX, seg.x1, seg.x2);
           minY = Math.min(minY, seg.y1, seg.y2);
           maxY = Math.max(maxY, seg.y1, seg.y2);
+        }
+      }
+    }
+
+    if (kaleidoscopeSource === 'combined') {
+      for (const item of combinedLSystems) {
+        if (item.segments && item.segments.length > 0) {
+          const sc = item.scale ?? 1.0;
+          for (const seg of item.segments) {
+            const x1 = seg.x1 * sc + item.offset.x;
+            const x2 = seg.x2 * sc + item.offset.x;
+            const y1 = seg.y1 * sc + item.offset.y;
+            const y2 = seg.y2 * sc + item.offset.y;
+            minX = Math.min(minX, x1, x2);
+            maxX = Math.max(maxX, x1, x2);
+            minY = Math.min(minY, y1, y2);
+            maxY = Math.max(maxY, y1, y2);
+          }
         }
       }
     }
@@ -373,7 +392,7 @@ export default function ArtCanvas({
       return null;
     }
     return { minX, maxX, minY, maxY };
-  }, [kaleidoscopeSource, cachedSegments, penSegments, penCurrent, caState, cellSize]);
+  }, [kaleidoscopeSource, cachedSegments, penSegments, penCurrent, caState, cellSize, combinedLSystems]);
 
   const screenToWorld = useCallback((sx: number, sy: number): Point => {
     // 1. Undo viewport rotation around center (cx, cy)
@@ -1627,7 +1646,7 @@ export default function ArtCanvas({
         }
 
         // DRAW ACTIVE SOURCE CONTENT
-        if (kaleidoscopeSource === 'lsystem' || kaleidoscopeSource === 'combined') {
+        if (kaleidoscopeSource === 'lsystem') {
           let finalSegs = cachedSegments;
           let finalPaths = cachedPaths;
           if (finalSegs.length > 0) {
@@ -1644,9 +1663,44 @@ export default function ArtCanvas({
               finalPaths
             );
           }
+        } else if (kaleidoscopeSource === 'combined') {
+          for (const item of combinedLSystems) {
+            if (item.segments && item.segments.length > 0) {
+              ctx.save();
+              ctx.translate(item.offset.x, item.offset.y);
+              ctx.scale(item.scale ?? 1.0, item.scale ?? 1.0);
+
+              const itemPalette = separateColors
+                ? (item.activePalette === 'custom' && item.customPalette && item.customPalette.length > 0 ? item.customPalette : (PALETTES[item.activePalette] || PALETTES.white))
+                : paletteColors;
+
+              renderSegsOfPen(
+                ctx,
+                item.segments,
+                lineWidth,
+                extrudeLw,
+                extrudeConn,
+                itemPalette,
+                ex,
+                ey,
+                opacity,
+                item.paths || []
+              );
+              ctx.restore();
+            }
+          }
         }
 
         if ((kaleidoscopeSource === 'ca' || kaleidoscopeSource === 'combined') && caState) {
+          const isComp = kaleidoscopeSource === 'combined';
+          const ox = isComp ? caManOffset.x : 0;
+          const oy = isComp ? caManOffset.y : 0;
+          const sc = isComp ? caScale : 1.0;
+
+          ctx.save();
+          ctx.translate(ox, oy);
+          ctx.scale(sc, sc);
+
           if (caDrawMode === 'shapes') {
             if (caShapes && caShapes.length > 0) {
               for (const shape of caShapes) {
@@ -1821,6 +1875,7 @@ export default function ArtCanvas({
               draw2DGridCells(ctx, caState, cellSize, caPaletteColors, opacity, caType);
             }
           }
+          ctx.restore();
         }
 
         if (kaleidoscopeSource === 'draw' || kaleidoscopeSource === 'pen') {
@@ -2840,7 +2895,7 @@ export default function ArtCanvas({
 
   // Auto-initializer of a primary L-system layer when entering Combined mode
   useEffect(() => {
-    if (mode === 'combined' && combinedLSystems.length === 0) {
+    if (isCombinedActive && combinedLSystems.length === 0) {
       const defaultItem: CombinedLSystem = {
         id: 'ls-default',
         name: 'Primary L-System',
@@ -2864,11 +2919,11 @@ export default function ArtCanvas({
       setCombinedLSystems([compiled]);
       setSelectedCombinedLSystemId(compiled.id);
     }
-  }, [mode, axiom, rules, iterations, angle, length, decay, lineWidth, lsActivePalette, lsCustomPalette, budIterations, stochastic, seed, rebuildLSystemCache, combinedLSystems.length]);
+  }, [isCombinedActive, axiom, rules, iterations, angle, length, decay, lineWidth, lsActivePalette, lsCustomPalette, budIterations, stochastic, seed, rebuildLSystemCache, combinedLSystems.length]);
 
   // Sync from selected layer to sidebar inputs
   useEffect(() => {
-    if (mode === 'combined' && selectedCombinedLSystemId) {
+    if (isCombinedActive && selectedCombinedLSystemId) {
       const item = combinedLSystems.find(x => x.id === selectedCombinedLSystemId);
       if (item) {
         // Prevent infinite overwrite loop or stale overwriting:
@@ -2906,11 +2961,11 @@ export default function ArtCanvas({
         if (setSeed) setSeed(itemSeed);
       }
     }
-  }, [selectedCombinedLSystemId, mode]);
+  }, [selectedCombinedLSystemId, isCombinedActive, combinedLSystems]);
 
   // Sync from sidebar inputs to selected layer
   useEffect(() => {
-    if (mode === 'combined' && selectedCombinedLSystemId) {
+    if (isCombinedActive && selectedCombinedLSystemId) {
       const sync = lastSelectSyncRef.current;
       if (sync && sync.id === selectedCombinedLSystemId) {
         const isAxiomSame = sync.axiom === axiom;
@@ -2983,7 +3038,7 @@ export default function ArtCanvas({
         return item;
       }));
     }
-  }, [axiom, rules, iterations, angle, length, decay, lineWidth, lsActivePalette, lsCustomPalette, budIterations, stochastic, seed, selectedCombinedLSystemId, mode, rebuildLSystemCache]);
+  }, [axiom, rules, iterations, angle, length, decay, lineWidth, lsActivePalette, lsCustomPalette, budIterations, stochastic, seed, selectedCombinedLSystemId, isCombinedActive, rebuildLSystemCache]);
 
   // Cellular Automata running ticker interval
   useEffect(() => {
@@ -3062,12 +3117,12 @@ export default function ArtCanvas({
     if (!canvas) return;
     if ((mode === 'ca' || (mode === 'kaleidoscope' && kaleidoscopeSource === 'ca')) && caDrawMode === 'shapes' && caActiveTool === 'move') {
       canvas.style.cursor = 'grab';
-    } else if (mode === 'combined') {
+    } else if (isCombinedActive) {
       canvas.style.cursor = 'default';
     } else {
       canvas.style.cursor = 'crosshair';
     }
-  }, [mode, caDrawMode, caActiveTool]);
+  }, [mode, caDrawMode, caActiveTool, isCombinedActive]);
 
   // Sync state stats reporting back to app.tsx header label
   useEffect(() => {
@@ -3102,7 +3157,7 @@ export default function ArtCanvas({
     const isKaleidoscopeDraw = mode === 'kaleidoscope' && kaleidoscopeSource === 'draw' && e.button === 0;
 
     // Combined mode manual manipulation left-drag triggers with auto-detection on click
-    if (mode === 'combined' && e.button === 0) {
+    if (isCombinedActive && e.button === 0) {
       const pt = screenToWorld(sx, sy);
 
       // A. Check if clicked on the top-right resize handle of selected L-System
@@ -3935,7 +3990,7 @@ export default function ArtCanvas({
         }
 
         // Render targets
-        if (kaleidoscopeSource === 'lsystem' || kaleidoscopeSource === 'combined') {
+        if (kaleidoscopeSource === 'lsystem') {
           if (cachedSegments.length > 0) {
             renderSegsOfPen(
               offCtx,
@@ -3950,9 +4005,44 @@ export default function ArtCanvas({
               cachedPaths
             );
           }
+        } else if (kaleidoscopeSource === 'combined') {
+          for (const item of combinedLSystems) {
+            if (item.segments && item.segments.length > 0) {
+              offCtx.save();
+              offCtx.translate(item.offset.x, item.offset.y);
+              offCtx.scale(item.scale ?? 1.0, item.scale ?? 1.0);
+
+              const itemPalette = separateColors
+                ? (item.activePalette === 'custom' && item.customPalette && item.customPalette.length > 0 ? item.customPalette : (PALETTES[item.activePalette] || PALETTES.white))
+                : lsPaletteColors;
+
+              renderSegsOfPen(
+                offCtx,
+                item.segments,
+                lineWidth,
+                extrudeLw,
+                extrudeConn,
+                itemPalette,
+                ex,
+                ey,
+                opacity,
+                item.paths || []
+              );
+              offCtx.restore();
+            }
+          }
         }
 
         if ((kaleidoscopeSource === 'ca' || kaleidoscopeSource === 'combined') && caState) {
+          const isComp = kaleidoscopeSource === 'combined';
+          const ox = isComp ? caManOffset.x : 0;
+          const oy = isComp ? caManOffset.y : 0;
+          const sc = isComp ? caScale : 1.0;
+
+          offCtx.save();
+          offCtx.translate(ox, oy);
+          offCtx.scale(sc, sc);
+
           if (caDrawMode === 'shapes') {
             if (caShapes && caShapes.length > 0) {
               for (const shape of caShapes) {
@@ -4039,6 +4129,7 @@ export default function ArtCanvas({
               draw2DGridCells(offCtx, caState, cellSize, caPaletteColors, opacity, caType);
             }
           }
+          offCtx.restore();
         }
 
         if (kaleidoscopeSource === 'draw' || kaleidoscopeSource === 'pen') {
@@ -4716,7 +4807,7 @@ export default function ArtCanvas({
         </div>
 
         {/* Combined Mode Selector */}
-        {mode === 'combined' && (
+        {isCombinedActive && (
           <div className="bg-slate-950/85 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-slate-800/80 shadow-lg text-slate-200 font-mono text-[11px] flex items-center gap-1.5 pointer-events-auto">
             <span className="text-slate-500 text-[9px] uppercase font-bold pr-1.5 border-r border-slate-800/80">ВЫДЕЛЕНИЕ / ACTIVE</span>
             
@@ -4778,7 +4869,7 @@ export default function ArtCanvas({
       </div>
 
       {/* Absolute multi-L-system manager in top-right */}
-      {mode === 'combined' && (
+      {isCombinedActive && (
         <div className="absolute top-4 right-4 z-40 w-72 bg-slate-950/90 backdrop-blur-md p-4 rounded-xl border border-slate-800/80 shadow-2xl flex flex-col gap-3 text-slate-200 pointer-events-auto select-none">
           <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
             <div className="flex items-center gap-1.5">

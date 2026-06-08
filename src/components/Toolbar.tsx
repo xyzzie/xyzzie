@@ -48,7 +48,38 @@ export default function Toolbar({
       
       {/* LEFT BRAND IDENTIFIER */}
       <div className="flex items-center gap-2">
-        <Compass className={`w-4 h-4 ${tc.text} opacity-90 shrink-0`} />
+        <svg viewBox="0 0 100 100" className="w-5 h-5 stroke-white fill-none stroke-[6.5]" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 0 1px rgba(255, 255, 255, 0.4))' }}>
+          {/* Main Trunk */}
+          <line x1="50" y1="95" x2="50" y2="50" />
+          
+          {/* First split Left & Right */}
+          <line x1="50" y1="50" x2="30" y2="30" />
+          <line x1="50" y1="50" x2="70" y2="30" />
+          
+          {/* Left Split splits into vertical & horizontal */}
+          <line x1="30" y1="30" x2="30" y2="15" />
+          <line x1="30" y1="30" x2="15" y2="30" />
+          
+          {/* Right Split splits into vertical & horizontal */}
+          <line x1="70" y1="30" x2="70" y2="15" />
+          <line x1="70" y1="30" x2="85" y2="30" />
+          
+          {/* Top Left Vertical splits up-left & up-right */}
+          <line x1="30" y1="15" x2="20" y2="5" />
+          <line x1="30" y1="15" x2="40" y2="5" />
+          
+          {/* Top Right Vertical splits up-left & up-right */}
+          <line x1="70" y1="15" x2="60" y2="5" />
+          <line x1="70" y1="15" x2="80" y2="5" />
+          
+          {/* Outer Left Horizontal splits up-left & down-left */}
+          <line x1="15" y1="30" x2="5" y2="20" />
+          <line x1="15" y1="30" x2="5" y2="40" />
+          
+          {/* Outer Right Horizontal splits up-right & down-right */}
+          <line x1="85" y1="30" x2="95" y2="20" />
+          <line x1="85" y1="30" x2="95" y2="40" />
+        </svg>
         <h1 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
           L-Systems & Automata
           <span className={`text-[9px] uppercase font-mono px-2 py-0.5 bg-white/5 border ${tc.border} ${tc.textLight} rounded-full tracking-wider font-semibold`}>

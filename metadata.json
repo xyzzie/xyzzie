@@ -1,0 +1,6 @@
+{
+  "name": "Symmetric Drawing Canvas",
+  "description": "An interactive digital artboard for freehand drawing, featuring a customizable pen, brush settings, and multiple symmetry modes for creating beautiful mandalas and kolams on a clean white canvas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
